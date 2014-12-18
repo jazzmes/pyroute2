@@ -52,6 +52,8 @@ class ifaddrmsg(nlmsg):
               ('scope', 'B'),
               ('index', 'I'))
 
+    fake_nla = ['IFA_DHCP']
+
     nla_map = (('IFA_UNSPEC',  'hex'),
                ('IFA_ADDRESS', 'ipaddr'),
                ('IFA_LOCAL', 'ipaddr'),
@@ -60,7 +62,8 @@ class ifaddrmsg(nlmsg):
                ('IFA_ANYCAST', 'ipaddr'),
                ('IFA_CACHEINFO', 'cacheinfo'),
                ('IFA_MULTICAST', 'ipaddr'),
-               ('IFA_FLAGS', 'uint32'))
+               ('IFA_FLAGS', 'uint32'),
+               ('IFA_DHCP', 'uint32'))
 
     class cacheinfo(nla):
         fields = (('ifa_prefered', 'I'),

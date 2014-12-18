@@ -533,6 +533,7 @@ class nlmsg_base(dict):
     header = None                # optional header class
     pack = None                  # pack pragma
     nla_map = {}                 # NLA mapping
+    fake_nla = []
 
     def __init__(self, buf=None, length=None, parent=None, debug=False):
         dict.__init__(self)
@@ -996,6 +997,9 @@ class nlmsg_base(dict):
         it is called from `encode()` routine.
         '''
         for i in self['attrs']:
+            if i[0] in self.fake_nla:
+                # skip fake NLAs on encoding
+                continue
             if i[0] in self.r_nla_map:
                 msg_class = self.r_nla_map[i[0]][0]
                 msg_type = self.r_nla_map[i[0]][1]

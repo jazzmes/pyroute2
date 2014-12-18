@@ -51,6 +51,7 @@ from pyroute2.netlink.rtnl.ndmsg import ndmsg
 from pyroute2.netlink.rtnl.bomsg import bomsg
 from pyroute2.netlink.rtnl.brmsg import brmsg
 from pyroute2.netlink.rtnl.ifinfmsg import ifinfmsg
+from pyroute2.netlink.rtnl.ifaddrmsg import IFA_F_PERMANENT
 from pyroute2.netlink.rtnl.ifaddrmsg import ifaddrmsg
 
 
@@ -276,8 +277,10 @@ class IPRSocket(NetlinkSocket):
     def __init__(self):
         NetlinkSocket.__init__(self, NETLINK_ROUTE)
         self.marshal = MarshalRtnl()
-        self.get_map = {RTM_NEWLINK: self.get_newlink}
-        self.put_map = {RTM_NEWLINK: self.put_newlink,
+        self.get_map = {RTM_NEWADDR: self.get_newaddr,
+                        RTM_NEWLINK: self.get_newlink}
+        self.put_map = {RTM_NEWADDR: self.put_newaddr,
+                        RTM_NEWLINK: self.put_newlink,
                         RTM_SETLINK: self.put_setlink,
                         RTM_DELLINK: self.put_dellink,
                         RTM_SETBRIDGE: self.put_setbr,
@@ -358,6 +361,14 @@ class IPRSocket(NetlinkSocket):
             # else just send the packet
             NetlinkSocket.put(self, msg, *argv, **kwarg)
 
+    def put_newaddr(self, msg, *argv, **kwarg):
+        NetlinkSocket.put(self, msg, *argv, **kwarg)
+
+    def get_newaddr(self, msg):
+        if not msg['flags'] & IFA_F_PERMANENT:
+            msg.strip('IFA_DHCP')
+            msg['attrs'].append(['IFA_DHCP', 1])
+
     def get_newlink(self, msg):
         if self.ancient:
             ifname = msg.get_attr('IFLA_IFNAME')
@@ -375,7 +386,6 @@ class IPRSocket(NetlinkSocket):
                     li['attrs'].append(['IFLA_INFO_KIND', kind])
             msg.reset()
             msg.encode()
-            return msg
 
     def put_getbo(self, msg, *argv, **kwarg):
         t = '/sys/class/net/%s/bonding/%s'
