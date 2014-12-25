@@ -224,63 +224,10 @@ class MarshalRtnl(Marshal):
             pass
 
 
-class IPRSocket(NetlinkSocket):
-    '''
-    The simplest class, that connects together the netlink parser and
-    a generic Python socket implementation. Provides method get() to
-    receive the next message from netlink socket and parse it. It is
-    just simple socket-like class, it implements no buffering or
-    like that. It spawns no additional threads, leaving this up to
-    developers.
-
-    Please note, that netlink is an asynchronous protocol with
-    non-guaranteed delivery. You should be fast enough to get all the
-    messages in time. If the message flow rate is higher than the
-    speed you parse them with, exceeding messages will be dropped.
-
-    *Usage*
-
-    Threadless RT netlink monitoring with blocking I/O calls:
-
-        >>> from pyroute2 import IPRSocket
-        >>> from pprint import pprint
-        >>> s = IPRSocket()
-        >>> s.bind()
-        >>> pprint(s.get())
-        [{'attrs': [('RTA_TABLE', 254),
-                    ('RTA_DST', '2a00:1450:4009:808::1002'),
-                    ('RTA_GATEWAY', 'fe80:52:0:2282::1fe'),
-                    ('RTA_OIF', 2),
-                    ('RTA_PRIORITY', 0),
-                    ('RTA_CACHEINFO', {'rta_clntref': 0,
-                                       'rta_error': 0,
-                                       'rta_expires': 0,
-                                       'rta_id': 0,
-                                       'rta_lastuse': 5926,
-                                       'rta_ts': 0,
-                                       'rta_tsage': 0,
-                                       'rta_used': 1})],
-          'dst_len': 128,
-          'event': 'RTM_DELROUTE',
-          'family': 10,
-          'flags': 512,
-          'header': {'error': None,
-                     'flags': 0,
-                     'length': 128,
-                     'pid': 0,
-                     'sequence_number': 0,
-                     'type': 25},
-          'proto': 9,
-          'scope': 0,
-          'src_len': 0,
-          'table': 254,
-          'tos': 0,
-          'type': 1}]
-        >>>
-    '''
+class IPRSocketMixin(object):
 
     def __init__(self):
-        NetlinkSocket.__init__(self, NETLINK_ROUTE)
+        super(IPRSocketMixin, self).__init__(NETLINK_ROUTE)
         self.marshal = MarshalRtnl()
         self.get_map = {RTM_NEWLINK: self.get_newlink}
         self.put_map = {RTM_NEWLINK: self.put_newlink,
@@ -295,12 +242,7 @@ class IPRSocket(NetlinkSocket):
         self.ancient = ANCIENT
 
     def bind(self, groups=RTNL_GROUPS, async=False):
-        '''
-        It is required to call *IPRSocket.bind()* after creation.
-        The call subscribes the NetlinkSocket to default RTNL
-        groups (`RTNL_GROUPS`) or to a requested group set.
-        '''
-        NetlinkSocket.bind(self, groups, async=async)
+        super(IPRSocketMixin, self).bind(groups, async=async)
 
     def name_by_id(self, index):
         return self.get_links(index)[0].get_attr('IFLA_IFNAME')
@@ -309,10 +251,7 @@ class IPRSocket(NetlinkSocket):
     # proxy protocol
     #
     def get(self, *argv, **kwarg):
-        '''
-        Proxy `get()` request
-        '''
-        msgs = NetlinkSocket.get(self, *argv, **kwarg)
+        msgs = super(IPRSocketMixin, self).get(*argv, **kwarg)
         for msg in msgs:
             mtype = msg['header']['type']
             if mtype in self.get_map:
@@ -320,13 +259,10 @@ class IPRSocket(NetlinkSocket):
         return msgs
 
     def put(self, *argv, **kwarg):
-        '''
-        Proxy `put()` request
-        '''
         if argv[1] in self.put_map:
             self.put_map[argv[1]](*argv, **kwarg)
         else:
-            NetlinkSocket.put(self, *argv, **kwarg)
+            super(IPRSocketMixin, self).put(*argv, **kwarg)
 
     ##
     # proxy hooks
@@ -342,7 +278,7 @@ class IPRSocket(NetlinkSocket):
                     kind = kind[0]
                 # not covered types, pass to the system
                 if kind not in ('bridge', 'bond'):
-                    return NetlinkSocket.put(self, msg, *argv, **kwarg)
+                    return super(IPRSocketMixin, self).put(msg, *argv, **kwarg)
                 ##
                 # otherwise, create a valid answer --
                 # NLMSG_ERROR with code 0 (no error)
@@ -365,7 +301,7 @@ class IPRSocket(NetlinkSocket):
                 self.backlog[seq] = [response]
         else:
             # else just send the packet
-            NetlinkSocket.put(self, msg, *argv, **kwarg)
+            super(IPRSocketMixin, self).put(msg, *argv, **kwarg)
 
     def get_newlink(self, msg):
         if self.ancient:
@@ -591,7 +527,7 @@ class IPRSocket(NetlinkSocket):
             response.encode()
             response = response.copy()
             self.backlog[seq] = [response]
-        NetlinkSocket.put(self, msg, *argv, **kwarg)
+        super(IPRSocketMixin, self).put(msg, *argv, **kwarg)
 
     def put_dellink(self, msg, *argv, **kwarg):
         if self.ancient:
@@ -600,7 +536,7 @@ class IPRSocket(NetlinkSocket):
 
             # not covered types pass to the system
             if kind not in ('bridge', 'bond'):
-                return NetlinkSocket.put(self, msg, *argv, **kwarg)
+                return super(IPRSocketMixin, self).put(msg, *argv, **kwarg)
             ##
             # otherwise, create a valid answer --
             # NLMSG_ERROR with code 0 (no error)
@@ -623,7 +559,64 @@ class IPRSocket(NetlinkSocket):
             self.backlog[seq] = [response]
         else:
             # else just send the packet
-            NetlinkSocket.put(self, msg, *argv, **kwarg)
+            super(IPRSocketMixin, self).put(msg, *argv, **kwarg)
+
+
+class IPRSocket(IPRSocketMixin, NetlinkSocket):
+    '''
+    The simplest class, that connects together the netlink parser and
+    a generic Python socket implementation. Provides method get() to
+    receive the next message from netlink socket and parse it. It is
+    just simple socket-like class, it implements no buffering or
+    like that. It spawns no additional threads, leaving this up to
+    developers.
+
+    Please note, that netlink is an asynchronous protocol with
+    non-guaranteed delivery. You should be fast enough to get all the
+    messages in time. If the message flow rate is higher than the
+    speed you parse them with, exceeding messages will be dropped.
+
+    *Usage*
+
+    Threadless RT netlink monitoring with blocking I/O calls:
+
+        >>> from pyroute2 import IPRSocket
+        >>> from pprint import pprint
+        >>> s = IPRSocket()
+        >>> s.bind()
+        >>> pprint(s.get())
+        [{'attrs': [('RTA_TABLE', 254),
+                    ('RTA_DST', '2a00:1450:4009:808::1002'),
+                    ('RTA_GATEWAY', 'fe80:52:0:2282::1fe'),
+                    ('RTA_OIF', 2),
+                    ('RTA_PRIORITY', 0),
+                    ('RTA_CACHEINFO', {'rta_clntref': 0,
+                                       'rta_error': 0,
+                                       'rta_expires': 0,
+                                       'rta_id': 0,
+                                       'rta_lastuse': 5926,
+                                       'rta_ts': 0,
+                                       'rta_tsage': 0,
+                                       'rta_used': 1})],
+          'dst_len': 128,
+          'event': 'RTM_DELROUTE',
+          'family': 10,
+          'flags': 512,
+          'header': {'error': None,
+                     'flags': 0,
+                     'length': 128,
+                     'pid': 0,
+                     'sequence_number': 0,
+                     'type': 25},
+          'proto': 9,
+          'scope': 0,
+          'src_len': 0,
+          'table': 254,
+          'tos': 0,
+          'type': 1}]
+        >>>
+    '''
+    pass
 
 
 def get_interface_type(name):
